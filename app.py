@@ -2,7 +2,11 @@ from flask import Flask, render_template_string, request, render_template_string
 import json
 from flask_socketio import SocketIO,  disconnect
 import pathlib
+import os
 
+from werkzeug.utils import secure_filename
+
+UPLOAD_FOLDER = 'uploads'
 
 from uiweb import Simple
 #from simpleweb import Simple
@@ -11,6 +15,7 @@ async_mode = 'threading'
 fapp = Flask(__name__,template_folder='templates',static_url_path='',  static_folder='static')
 
 fapp.config['SECRET_KEY'] = 'secret!'
+fapp.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 socket_ = SocketIO(fapp,async_mode=async_mode, async_handlers=True)
 
 sid = None
@@ -51,7 +56,9 @@ def run_process(message):
 @socket_.on('input_event', namespace='/simpleweb')
 def input_event(message):
     user = get_current_connection(request.sid)
-    user[2].input_event(message)    
+    user[2].input_event(message) 
+
+    
 
 @socket_.on('close_maintab', namespace='/simpleweb')
 def close_maintab(message):
@@ -111,7 +118,26 @@ def adminpage():
 def upload_file():
    SW.write_settings(request,PATH_TO_SETTINGS)
 
-   return "ok",200  
+   return "ok",200
+
+
+
+@fapp.route('/upload_file', methods = ['PUT', 'POST'])
+def upload_file_ui():
+   file = request.files['file'] 
+   if file.filename == '':
+            #'No selected file'
+            return redirect(request.url)
+   if file:
+            filename = secure_filename(file.filename)
+            os.makedirs(PYTHONPATH+os.sep+fapp.config['UPLOAD_FOLDER'],exist_ok=True)
+            file.save(PYTHONPATH+os.sep+os.path.join(fapp.config['UPLOAD_FOLDER'], filename))
+
+            user = get_current_connection(request.args.get('sid'))
+            user[2].input_event({"data":"upload_file","filename":filename,"source":request.args.get('id')}) 
+   
+
+   return "ok",200     
 
 @fapp.route('/static/<path:path>')
 def static_file(path):
