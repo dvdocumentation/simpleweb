@@ -436,6 +436,66 @@
                                                 "BackgroundColor": "",
                                                 "StrokeWidth": "",
                                                 "Padding": ""
+                                            },
+                                            {
+                                                "type": "Tab",
+                                                "height": "wrap_content",
+                                                "width": "wrap_content",
+                                                "weight": "0",
+                                                "Value": "",
+                                                "Variable": "В диалоге",
+                                                "orientation": "vertical",
+                                                "Elements": [
+                                                    {
+                                                        "type": "LinearLayout",
+                                                        "height": "wrap_content",
+                                                        "width": "match_parent",
+                                                        "weight": "0",
+                                                        "Value": "",
+                                                        "Variable": "",
+                                                        "orientation": "horizontal",
+                                                        "Elements": [
+                                                            {
+                                                                "type": "Button",
+                                                                "height": "wrap_content",
+                                                                "width": "wrap_content",
+                                                                "weight": "0",
+                                                                "Value": "Добавить",
+                                                                "Variable": "btn_add_3"
+                                                            },
+                                                            {
+                                                                "type": "Button",
+                                                                "height": "wrap_content",
+                                                                "width": "wrap_content",
+                                                                "weight": "0",
+                                                                "Value": "Удалить",
+                                                                "Variable": "btn_delete_3"
+                                                            },
+                                                            {
+                                                                "type": "Button",
+                                                                "height": "wrap_content",
+                                                                "width": "wrap_content",
+                                                                "weight": "0",
+                                                                "Value": "Редактировать",
+                                                                "Variable": "btn_edit_3"
+                                                            }
+                                                        ],
+                                                        "BackgroundColor": "",
+                                                        "StrokeWidth": "",
+                                                        "Padding": ""
+                                                    },
+                                                    {
+                                                        "type": "TableLayout",
+                                                        "height": "wrap_content",
+                                                        "width": "match_parent",
+                                                        "weight": "0",
+                                                        "Value": "@table3",
+                                                        "Variable": "table3"
+                                                    }
+                                                ],
+                                                "BackgroundColor": "",
+                                                "StrokeWidth": "",
+                                                "Padding": ""
                                             }
                                         ],
                                         "BackgroundColor": "",
@@ -1301,6 +1361,122 @@
                     }
                 ],
                 "login_screen": true
+            },
+            {
+                "ProcessName": "Штрихкоды",
+                "type": "Process",
+                "Operations": [
+                    {
+                        "Name": "Новый экран",
+                        "type": "Operation",
+                        "Elements": [
+                            {
+                                "Value": "",
+                                "Variable": "",
+                                "type": "LinearLayout",
+                                "weight": "0",
+                                "height": "match_parent",
+                                "width": "match_parent",
+                                "orientation": "vertical",
+                                "Elements": [
+                                    {
+                                        "type": "TextView",
+                                        "height": "wrap_content",
+                                        "width": "wrap_content",
+                                        "weight": "0",
+                                        "Value": "",
+                                        "Variable": "barcodes"
+                                    }
+                                ],
+                                "BackgroundColor": "",
+                                "StrokeWidth": "",
+                                "Padding": ""
+                            },
+                            {
+                                "Value": "",
+                                "Variable": "code",
+                                "type": "barcode"
+                            }
+                        ],
+                        "Timer": false,
+                        "hideToolBarScreen": false,
+                        "noScroll": false,
+                        "handleKeyUp": false,
+                        "hideBottomBarScreen": false,
+                        "onlineOnStart": false,
+                        "onlineOnAfterStart": false,
+                        "onlineOnInput": false,
+                        "Handlers": [
+                            {
+                                "event": "onInput",
+                                "action": "run",
+                                "type": "python",
+                                "method": "barcodes_input",
+                                "postExecute": "",
+                                "listener": "barcode"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "ProcessName": "Файлы",
+                "type": "Process",
+                "Operations": [
+                    {
+                        "Name": "Файлы",
+                        "type": "Operation",
+                        "Elements": [
+                            {
+                                "Value": "",
+                                "Variable": "",
+                                "type": "LinearLayout",
+                                "weight": "0",
+                                "height": "match_parent",
+                                "width": "match_parent",
+                                "orientation": "vertical",
+                                "Elements": [
+                                    {
+                                        "type": "file",
+                                        "height": "wrap_content",
+                                        "width": "wrap_content",
+                                        "weight": "0",
+                                        "Value": "",
+                                        "Variable": "file1"
+                                    },
+                                    {
+                                        "type": "Button",
+                                        "height": "wrap_content",
+                                        "width": "wrap_content",
+                                        "weight": "0",
+                                        "Value": "Загрузить",
+                                        "Variable": "btn_upload"
+                                    }
+                                ],
+                                "BackgroundColor": "",
+                                "StrokeWidth": "",
+                                "Padding": ""
+                            }
+                        ],
+                        "Timer": false,
+                        "hideToolBarScreen": false,
+                        "noScroll": false,
+                        "handleKeyUp": false,
+                        "hideBottomBarScreen": false,
+                        "onlineOnStart": false,
+                        "onlineOnAfterStart": false,
+                        "onlineOnInput": false,
+                        "Handlers": [
+                            {
+                                "event": "onInput",
+                                "action": "run",
+                                "type": "python",
+                                "method": "upload_file",
+                                "postExecute": ""
+                            }
+                        ]
+                    }
+                ]
             }
         ],
         "ConfigurationSettings": {

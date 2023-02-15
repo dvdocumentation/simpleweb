@@ -438,7 +438,8 @@ def tables_open(hashMap,_files=None,_data=None):
     "type": "table",
     "textsize": "25",
     "hidecaption": "true",
-    "hideinterline": "true",
+    "hideinterline": "false",
+    "editmode": "table",
     "columns": [
     {
         "name": "selected",
@@ -546,12 +547,78 @@ def tables_open(hashMap,_files=None,_data=None):
 
     hashMap.put("table2",json.dumps(t))
 
+
+    t = {
+    "type": "table",
+    "textsize": "25",
+    "hidecaption": "true",
+    "hideinterline": "false",
+    "editmode": "modal",
+    "columns": [
+    {
+        "name": "selected",
+        "header": "Пометка",
+        "weight": "1",
+        "gravity":"center",
+        "input":"CheckBox"
+    },    
+    {
+        "name": "name",
+        "header": "Сотрудник",
+        "weight": "2",
+        "gravity":"left",
+        "input":"EditTextText"
+    },
+    {
+        "name": "qty",
+        "header": "Кол-во часов",
+        "weight": "1",
+        "gravity":"right"
+    },
+    {
+        "name": "price",
+        "header": "Итого",
+        "weight": "1",
+        "gravity":"right"
+    }
+    ],
+    "colorcells": [
+    {
+        "row": "1",
+        "column": "1",
+        "color": "#d81b60"
+    }
+    ]
+    }   
+
+    t['rows'] = table3
+
+    hashMap.put("table3",json.dumps(t))
+
+
     return hashMap
 
 def tablesInput(hashMap,_files=None,_data=None):
     
     if hashMap.get("listener")=="TableEdit":
         hashMap.put("toast","Value= <b>"+hashMap.get("table_value")+" </b>,Column=<b>"+hashMap.get("table_column")+"</>, selected_line="+hashMap.get("selected_line"))
+    if hashMap.get("listener")=="TableEditModal":
+        hashMap.put("toast","Value= <b>"+hashMap.get("table_values")+" </b>, selected_line="+hashMap.get("selected_line"))    
+    if hashMap.get("listener")=="btn_add_3":
+        hashMap.put("TableAddRow","table3")    
+    if hashMap.get("listener")=="btn_edit_3":
+        hashMap.put("TableEditRow","table3")        
+    if hashMap.get("listener")=="btn_delete_3":
+        jtable =json.loads(hashMap.get("table3"))
+        sel_line = 'selected_line_table3'
+        if hashMap.containsKey(sel_line):
+     
+                jtable['rows'].pop(int(hashMap.get(sel_line)))
+
+                hashMap.put("table3",json.dumps(jtable,ensure_ascii=False)) 
+                hashMap.put("SetValuesTable",json.dumps([{"table3":jtable}]) )       
+                
+                hashMap.remove(sel_line)
     
     return hashMap   
 
@@ -562,6 +629,27 @@ def login_input(hashMap,_files=None,_data=None):
         hashMap.put("LoginCommit","")
     if hashMap.get("listener")=="btn_cancel":
         hashMap.put('CloseTab',"")
+       
+    
+    return hashMap  
+
+def barcodes_input(hashMap,_files=None,_data=None):
+    
+    if hashMap.containsKey("barcodes"):
+        hashMap.put("barcodes",hashMap.get("barcodes")+"<br>"+hashMap.get("code"))    
+    else:    
+        hashMap.put("barcodes",hashMap.get("code"))    
+
+    hashMap.put("SetValuesPulse",json.dumps([{"barcodes":hashMap.get("barcodes")}]))
+       
+    
+    return hashMap         
+
+def upload_file(hashMap,_files=None,_data=None):
+    
+    if hashMap.get("listener")=="btn_upload":
+        hashMap.put("UploadFile","file1")    
+    
        
     
     return hashMap     
