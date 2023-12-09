@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Настройки Simple</title>
+  <style>
+
+ 
+  input[type=text], input[type=password] {
+  width: 100%;
+  padding: 12px 20px;
+  margin: 8px 0;
+  display: inline-block;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+}
+
+
+button {
+  background-color: #04AA6D;
+  color: white;
+  padding: 14px 20px;
+  margin: 8px 0;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+}
+
+button:hover {
+  opacity: 0.8;
+}
+
+  
+  .horizontal{
+  display: flex;
+  flex-direction: row;
+  justify-content: begin;
+  align-items: center;
+  }
+  
+  .column {
+  display: flex;
+  flex-direction: column;
+  margin: 10px;
+  padding: 12px 20px;
+  background-color: #F5F5F5;
+  
+}
+
+
+.row {
+   display: flex;
+  flex-direction: row;
+}
+  
+  </style>
+  <script src="https://code.jquery.com/jquery-3.5.0.js"></script>
+</head>
+<body>
+
+
+
+
+<form >
+
+<div class="row">
+  <div class="column">
+  <h3>Текущая конфигурация</h3>
+			
+  <label for="uifile">Файл конфигурации(.ui):</label>
+  <input type="file" id="uifile" name="uifile"><br><br>
+  
+  <div class=horizontal>
+  <p >Последняя загрузка:</p>
+  <p style="color:purple;">{{settings.last_update_uifile}}</p>
+  </div>
+ 
+  </div>
+  
+  <div class="column">
+  
+  <h3>Файл локальных обработчиков (Python)</h3>
+
+  <label for="handlersfile">Файл обработчиков(.py):</label>
+  <input type="file" id="handlersfile" name="handlersfile"><br><br>
+  
+    <div class=horizontal>
+  <p >Последняя загрузка:</p>
+  <p style="color:purple;">{{settings.last_update_handlersfile}}</p>
+  </div>
+  
+  </div>
+</div>
+
+
+
+
+ 
+  
+</form>
+
+
+
+<form>
+
+<h3>Параметры доступа к online-обработчикам (бек-система)</h3>
+<label for="url">URL:</label>
+  <input type="text" id="url" name="url" value={{settings.url}} ><br><br>
+<label for="user">Пользователь:</label>
+  <input type="text" id="user" name="user" value={{settings.user}}><br><br>  
+<label for="password">Пароль:</label>
+  <input type="password" id="password" name="password" value={{settings.password}}><br><br>
+
+</form>
+
+
+<button   onclick="SaveSettings()">Сохранить настройки</button>
+
+<script>
+$(document).ready(function() {
+    $('#uifile').change(function(evt) {
+       UploadFilesUI()
+    });
+});
+</script>
+
+<script>
+$(document).ready(function() {
+    $('#handlersfile').change(function(evt) {
+       UploadFilesHandlers()
+    });
+});
+</script>
+
+<script>
+async function UploadFilesUI() 
+{
+	
+	
+	if($('#uifile').val().length == 0){
+    alert("Нужно указать файл конфигурации");
+   
+    return false;
+    }else{
+
+    let formData = new FormData();
+    let ui = $('#uifile').prop('files')[0];   
+         
+    formData.append("uifile", ui);
+	  
+    const ctrl = new AbortController()   
+    setTimeout(() => ctrl.abort(), 5000);
+    
+    try {
+       let r = await fetch('/uploader', 
+         {method: "POST", body: formData, signal: ctrl.signal}); 
+		 location.reload();  
+        
+       console.log('HTTP response code:',r.status); 
+    } catch(e) {
+       console.log('Some problem...:', e);
+    }
+	}
+    
+}
+</script>
+
+<script>
+  async function UploadFilesHandlers() 
+  {
+    
+    
+    if($('#handlersfile').val().length == 0){
+      alert("Нужно указать файл обработчиков");
+     
+      return false;
+      }else{
+  
+      let formData = new FormData();
+       let handlers = $('#handlersfile').prop('files')[0];  	
+           
+    formData.append("handlersfile", handlers);
+      
+      const ctrl = new AbortController()   
+      setTimeout(() => ctrl.abort(), 5000);
+      
+      try {
+         let r = await fetch('/uploader', 
+           {method: "POST", body: formData, signal: ctrl.signal}); 
+         location.reload();  
+        
+      } catch(e) {
+         console.log('Some problem...:', e);
+      }
+    }
+      
+  }
+  </script>
+
+<script>
+async function SaveSettings() 
+{
+	
+	
+	
+    let settings = { url:$('#url').val(), user:$('#user').val(), password:$('#password').val() };
+    let formData = new FormData();
+           
+    formData.append("settings", JSON.stringify(settings)); 
+    
+    const ctrl = new AbortController()    
+    setTimeout(() => ctrl.abort(), 5000);
+    
+    try {
+       let r = await fetch('/uploader', 
+         {method: "PUT", body: formData, signal: ctrl.signal}); 
+       
+        document.location.href = '../';
+    } catch(e) {
+       console.log('Some problem...:', e);
+    }
+	
+    
+}
+</script>
+</body>
+</html>
