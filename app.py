@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, render_template_string, session, copy_current_request_context, url_for,Markup, render_template, redirect
+from flask import Flask, render_template_string, request, render_template_string, session, copy_current_request_context, url_for,Markup, render_template, redirect,send_from_directory
 import json
 from flask_socketio import SocketIO,  disconnect
 import pathlib
@@ -16,6 +16,7 @@ fapp = Flask(__name__,template_folder='templates',static_url_path='',  static_fo
 
 fapp.config['SECRET_KEY'] = 'secret!'
 fapp.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+fapp.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 socket_ = SocketIO(fapp,async_mode=async_mode, async_handlers=True)
 
 sid = None
@@ -129,7 +130,7 @@ def upload_file_ui():
             #'No selected file'
             return redirect(request.url)
    if file:
-            filename = secure_filename(file.filename)
+            filename = request.args.get('sid')+"_"+secure_filename(file.filename)
             os.makedirs(PYTHONPATH+os.sep+fapp.config['UPLOAD_FOLDER'],exist_ok=True)
             file.save(PYTHONPATH+os.sep+os.path.join(fapp.config['UPLOAD_FOLDER'], filename))
 
@@ -137,7 +138,34 @@ def upload_file_ui():
             user[2].input_event({"data":"upload_file","filename":filename,"source":request.args.get('id')}) 
    
 
-   return "ok",200     
+   return "ok",200 
+
+@fapp.route('/download_file', methods = ['GET', 'POST'])
+def download_file():
+    os.makedirs(PYTHONPATH+os.sep+fapp.config['UPLOAD_FOLDER'],exist_ok=True)
+    filename = request.args.get('filename')
+    return send_from_directory(PYTHONPATH+os.sep+os.path.join(fapp.config['UPLOAD_FOLDER']), filename, as_attachment=True)
+
+@fapp.route('/get_conf', methods = ['GET'])
+def get_conf():
+    os.makedirs(PYTHONPATH+os.sep+fapp.config['UPLOAD_FOLDER'],exist_ok=True)
+    filename = request.args.get('filename')
+    full_path = PYTHONPATH+os.sep+os.path.join(fapp.config['UPLOAD_FOLDER'])+os.sep+filename
+    
+    return send_from_directory(PYTHONPATH+os.sep+os.path.join(fapp.config['UPLOAD_FOLDER']), filename, as_attachment=True)
+
+@fapp.route('/get_conf_text', methods = ['GET'])
+def get_conf_text():
+    os.makedirs(PYTHONPATH+os.sep+fapp.config['UPLOAD_FOLDER'],exist_ok=True)
+    filename = request.args.get('filename')
+    full_path = PYTHONPATH+os.sep+os.path.join(fapp.config['UPLOAD_FOLDER'])+os.sep+filename
+
+    jconfiguration={}
+    with open(full_path, "r",encoding="utf-8") as file:
+        jconfiguration = json.load(file)    
+
+    return json.dumps(jconfiguration,ensure_ascii=False,indent=4, separators=(',', ': ')),200
+
 
 @fapp.route('/static/<path:path>')
 def static_file(path):
