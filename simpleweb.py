@@ -18,6 +18,8 @@ import threading
 import asyncio
 import pathlib
 from datetime import datetime
+import time
+
 
 
 
@@ -148,11 +150,16 @@ class Simple:
     else:
       processname= strprocessname 
 
-
+    _cookies = None
+    if "_cookies" in self.hashMap:
+       _cookies = self.hashMap.get("_cookies")
     self.hashMap = {}
+    if _cookies != None:
+       self.hashMap["_cookies"] = _cookies
+
     self.hashMap["base_path"] = Simple.PYTHONPATH
 
-    
+    self.read_globals()
 
     soup = bs4.BeautifulSoup(features="lxml")
     #tabid = translit(processname, 'ru', reversed=True).replace(" ","_")
@@ -474,6 +481,37 @@ class Simple:
                 
     return dialogHTML
         
+  def js_result(self,message):
+
+    if message['id'] in self.js_results_async:
+
+
+      postExecute = self.js_results_async[message['id']][0]
+      tab_id = self.js_results_async[message['id']][1]
+      
+      
+
+      self.js_results_async.pop( message['id'], None)
+
+      if message.get("code")==1:
+        jHashMap = message["value"]
+        for key, value in jHashMap.items():
+            self.hashMap[key]=value
+
+        self.handle_command(tab_id)
+
+        if postExecute!=None and postExecute!='':
+          self.RunEvent(None,postExecute)
+
+      else:
+        self.hashMap['ErrorMessage']= message.get("value")
+        self.socket_.emit('error', {'code':str(message.get("value"))},room=self.sid,namespace='/'+SOCKET_NAMESPACE)
+
+      
+    else:
+      self.js_results[message['id']] = message
+    
+
 
   def input_event(self,message):
   
@@ -488,7 +526,7 @@ class Simple:
            #print(source)
            hashMap["current_tab_id"] =  source
            return   
-        if message.get('data')=='barcode':
+        elif message.get('data')=='barcode':
           barcodeelements = list(filter(lambda tag: tag['type'] == "barcode", self.screen['Elements']))
           if len(barcodeelements)>0:
             hashMap['listener']='barcode'
@@ -503,7 +541,10 @@ class Simple:
           hashMap["file_id"]=spl[1]
           hashMap["filename"]=message.get('filename')
           hashMap['listener']='upload_file'
-              
+
+        elif message.get('data')=='get_cookie': 
+           mCookie = message.get('value')
+           hashMap['_cookies']=mCookie
 
         elif message.get('data')=='table_click' and not message.get('source')==None:
           hashMap["listener"]='TableClick'
@@ -613,7 +654,14 @@ class Simple:
           hashMap["clipboard_result"]=message.get('value')
         elif message.get('data')=='dialog_result':  
           hashMap["event"]=message.get('source')
-          hashMap["listener"]=message.get('source')
+          on_change=False
+          if message.get('source')=='onResultPositive' or message.get('source')=='onResultNegative':
+            hashMap["listener"]=message.get('source')
+          else:  
+            on_change=True
+            
+
+            #hashMap["listener"]=message.get('source') 
 
           jvalues = json.loads(message.get('values'))
           jresvalues = []
@@ -625,10 +673,23 @@ class Simple:
                 jresvalues.append(tempj)
               else:
                 tempj = {}
-                tempj[key[34:]] =value
+                if self.current_tab_id in key:
+                  tempj[key[34:]] =value
+                  if on_change:
+                     hashMap[key[34:]] =value
+                else:  
+                  tempj[key] =value 
+                  if on_change:
+                     hashMap[key] =value
+                
                 jresvalues.append(tempj)
              
-
+          if on_change:
+            if self.current_tab_id in message.get("source"):
+                hashMap["listener"] = message.get("source")[34:]
+            else:  
+                hashMap["listener"] =message.get("source")
+             
           hashMap["dialog_values"]=json.dumps(jresvalues,ensure_ascii=False)
         elif message.get('data')=='card_click':
           if self.blocknext:
@@ -654,6 +715,8 @@ class Simple:
                   for key,value in el.items():
                     if self.current_tab_id in key:
                         hashMap[key[34:]] =el[key]
+                    else:  
+                        hashMap[key] =value    
           
           if 'source' in message:
 
@@ -703,6 +766,24 @@ class Simple:
     need_run_on_start = False
 
     #Simple.socket_.emit('setvaluepulse', {'key':"d"+Simple.current_tab_id+"_"+key,'value':el[key],'tabid':Simple.current_tab_id},sid=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+    if  'SetCookie' in self.hashMap:
+          
+          jSetValues = json.loads(self.hashMap.get('SetCookie'))
+          for item in jSetValues:
+             if not "expires" in item:
+                item["expires"]=1
+          
+          self.socket_.emit('setcookie', jSetValues,room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+                     #print("d"+Simple.current_tab_id+"_"+key)
+                     
+          self.hashMap.pop('SetCookie',None)
+    if  'GetCookies' in self.hashMap:
+          self.hashMap.pop('GetCookies',None)  
+           
+          self.socket_.emit('getcookie', {},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+                     #print("d"+Simple.current_tab_id+"_"+key)
+                     
+              
     if  'SetValues' in self.hashMap:
           #TODO переделать одним запросом
           jSetValues = json.loads(self.hashMap.get('SetValues'))
@@ -712,6 +793,15 @@ class Simple:
                      #print("d"+Simple.current_tab_id+"_"+key)
                      
           self.hashMap.pop('SetValues',None)
+    if  'SetValuesEdit' in self.hashMap:
+          #TODO переделать одним запросом
+          jSetValues = json.loads(self.hashMap.get('SetValuesEdit'))
+          for el in jSetValues:
+              for key,value in el.items():
+                     self.socket_.emit('setvalueedit', {'key':"d"+self.current_tab_id+"_"+key,'value':html.unescape(el[key]),'tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+                     #print("d"+Simple.current_tab_id+"_"+key)
+                     
+          self.hashMap.pop('SetValuesEdit',None)      
 
     if  'SetValuesPulse' in self.hashMap:
           #TODO переделать одним запросом
@@ -1010,14 +1100,21 @@ class Simple:
              
              self.hashMap.pop('ShowDialogLayout',None) 
              
-             layoutHTML = self.get_layouts(soup,dialog_layout,0)
-             dialogHTML = """<dialog>
+             layoutHTML = str(self.get_layouts(soup,dialog_layout,0))
+
+             if  "ShowDialogActive" in self.hashMap:
+                ids_to_search = str(self.hashMap.get("ShowDialogActive")).split(";")
+                for id_to_search in ids_to_search:
+                  
+                  layoutHTML = layoutHTML.replace(id_to_search+'" ',id_to_search+'"' +'class="closedialogchange"' +' ' )
+
+             dialogHTML = """<dialog style="overflow:auto;resize:both;min-height:10px;">
               <div class="dialogmodal-header" >
         
                 <h4>"""+title+"""</h4>
               </div>
               <p/>
-              <div id=contentModalDialog>   """+ str(layoutHTML) + """    </div>
+              <div id=contentModalDialog>   """+ layoutHTML + """    </div>
               <p/>
               <div>
               <button class="closedialog" id="onResultPositive">"""            +YesBtn+            """</button>
@@ -1170,7 +1267,14 @@ class Simple:
 
     self.configuration = {}
     self.hashMap={}
+    self.hashMapGlobals={}
+
+
+
     self.current_tab_id=None
+
+    self.js_results = {}
+    self.js_results_async = {}
 
     self.opened_tabs =[]
     self.new_tabs = []
@@ -1705,6 +1809,9 @@ class Simple:
                 
                 #new_form = soup.new_tag("form", method="post", action="/oninput/")  
 
+
+                   
+
                  if "|" in elem.get("Value",''):
                     splited =  elem.get("Value",'').split("|")
 
@@ -1722,6 +1829,9 @@ class Simple:
 
                     new_element_layout.append(new_element)
 
+                    additional_styles.append("resize: both;")   
+                    additional_styles.append("overflow: auto;")
+
                     new_element = soup.new_tag("textarea", id=tvkey,style=get_decor(elem,additional_styles))
                     if len(splited[1])>0:
                       new_element.string =  self.calculateField(splited[1],localData)
@@ -1734,6 +1844,9 @@ class Simple:
                     currentcontainer.append(new_element_layout)
 
                  else:    
+
+                  additional_styles.append("resize: both;")
+                  additional_styles.append("overflow: auto;")
                 
                   new_element = soup.new_tag("textarea", id=tvkey,style=get_decor(elem,additional_styles))
                   if len(elem.get("Value",''))>0:
@@ -2328,6 +2441,8 @@ class Simple:
 
     <script src="//cdn.jsdelivr.net/jquery.color-animation/1/mainfile"></script> 
 
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.5/dist/js.cookie.min.js"> </script>
+
     
     <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.js"></script>
     <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap5.js"></script>
@@ -2351,6 +2466,8 @@ class Simple:
             var socket = io(namespace, {reconnection: false});
             var sid = socket.id
 
+           
+            
             
 
             var DELAY = 250, clicks = 0, timer = null;
@@ -2362,9 +2479,16 @@ class Simple:
            //   formdata={data: 'table_click',index: ($(this).index()),source:($(this).attr("id"))}
                 
            //   socket.emit('input_event', formdata);
+
            // });
 
 
+           //setTimeout( function(){
+           //var r = Cookies.get();
+           //           formdata={data: 'get_cookie',value:JSON.stringify(r)}
+           //           socket.emit('cookie_event', formdata); 
+           // }, 500);
+                      
            
 
             let code = "";
@@ -2398,6 +2522,14 @@ class Simple:
               
             
             });
+
+            //    $(window).on('load', function() {
+                
+            //    var r = Cookies.get();
+            //    formdata={data: 'get_cookie',value:JSON.stringify(r)}
+            //    socket.emit('input_event', formdata); 
+                
+            //})
 
            
 
@@ -2482,7 +2614,10 @@ class Simple:
               var selectedText  = this.selectedOptions[0].text;
               
               formdata={data: 'select_input',index: ($(this).index()),source:($(this).attr("id")),value:selectedValue}
+              if($(this).attr("class")!="closedialogchange"){
+              
               socket.emit('input_event', formdata);
+              }
             });
 
 
@@ -2498,6 +2633,9 @@ class Simple:
 
             $(document).on('click', 'button', function()
             {
+            
+              
+
               var clickedID=this.id
 
                 
@@ -2544,6 +2682,11 @@ class Simple:
 
                 var id = $(this).attr("id");
                 var v = $(this).val();
+
+                if(id==""||id==null||typeof id == 'undefined') {
+                     id = $(this).parent().attr("id");
+                     
+                }
 
                 item = {}
                 
@@ -2661,6 +2804,8 @@ class Simple:
 
 }
 
+          
+          
           socket.on('upload_file', function (data) {
 
           if(!$('#'+data.file_id).val()){
@@ -2681,14 +2826,42 @@ class Simple:
                            
                       });          
 
-            socket.on('setvalue', function (data) {
+            
+                     
+
+             socket.on('getcookie', function (data) {
                 
-                //$("#"+data.key).val(data.value).trigger('change'); 
-                $("#"+data.key).html(data.value);
+              var r = Cookies.get();
+              formdata={data: 'get_cookie',value:JSON.stringify(r)}
+              socket.emit('cookie_event', formdata); 
+                
+               
             });
 
+            socket.on('setcookie', function (data) {
+                
+              $.each(data, function(i, item) {
+                  
+                  Cookies.set(data[i].key, data[i].value, { expires:data[i].expires });
+                }); 
+                
+               
+            });          
+            
+            socket.on('setvalue', function (data) {
+                
+                $("#"+data.key).html(data.value);
+                               
+            });
+
+            socket.on('setvalueedit', function (data) {
+                
+                $("#"+data.key).attr('value',data.value);
+            });
+            
+
             socket.on('setvisible', function (data) {
-                //alert(data.value);
+                
                 $("#"+data.key).css('visibility',data.value1);
                 $("#"+data.key).css('display',data.value2);
             });
@@ -2796,6 +2969,27 @@ class Simple:
            
            });
 
+           
+          socket.on('eval_js', function (data) {
+                 var script =  data.script;
+                 var hashMap = data.hashMap;
+                 var id_handler = data.id;
+
+                 try {
+
+                      var F=new Function ('hashMap',script);
+                      res = F(hashMap);
+                      socket.emit('js_result', {code:1,id: id_handler,value:res});
+
+                 } catch (err) { 
+                      
+                      socket.emit('js_result', {code:-1,id: id_handler,value:String(err)});
+
+                 }
+
+
+                 
+            }); 
           
           socket.on('notification', function (data) {
                 
@@ -2852,17 +3046,14 @@ class Simple:
               
             navigator.permissions.query({ name: 'clipboard-read' })
     .then((result) => {
+        
         if (result.state == 'granted' || result.state == 'prompt') {
+            
             navigator.clipboard.readText().then(
   clipText => socket.emit('input_event', {data:"clipboard_result",source: "",value:clipText}));
         }
     });
 
-
-              
-              
-
-              
               
                 
             });
@@ -2917,6 +3108,12 @@ class Simple:
                 btn.addEventListener("click", dialogbutton)
                 }
 
+                const changeBtns = document.getElementsByClassName("closedialogchange");
+
+                for (btn of changeBtns) {
+                btn.addEventListener("change", dialogbutton)
+                }
+
                 async function readFileAsDataURL(file) {
                     let result_base64 = await new Promise((resolve) => {
                         let fileReader = new FileReader();
@@ -2931,7 +3128,7 @@ class Simple:
 
                 function dialogbutton(event) {
                 
-                    //alert("dialog button")
+                    
                 
                     jsonObj = [];
                     $("input", $("#contentModalDialog")).each(function() {
@@ -2958,7 +3155,13 @@ class Simple:
                     $("textarea", $("#contentModalDialog")).each(function() {
 
                     var id = $(this).attr("id");
+                   
                     var v = $(this).val();
+                    
+                    if(id==""||id==null||typeof id == 'undefined') {
+                     id = $(this).parent().attr("id");
+                     
+                    }
 
                     item = {}
                     
@@ -2978,6 +3181,7 @@ class Simple:
 
                     jsonObj.push(item);
                     });
+                    
 
                     
 
@@ -3762,6 +3966,12 @@ function openProcess(strId) {
         self.make_menu(soup,nav,menustr)
       
       if not self.loginreload:    
+        if "HTMLHead" in self.configuration['ClientConfiguration']:
+          nw_st = soup.new_tag("script")
+          string = base64.b64decode(self.configuration['ClientConfiguration']["HTMLHead"]).decode("utf-8")
+          
+          soup.head.append(string)
+           
         if "StyleTemplates" in self.configuration['ClientConfiguration']:
           for   style in self.configuration['ClientConfiguration']['StyleTemplates']:
             if style.get("use_as_class") == True:
@@ -3907,6 +4117,19 @@ function openProcess(strId) {
 
    return newTab,new_tab_content  
        
+  def read_globals(self):
+     for k,v in self.hashMapGlobals.items():
+        self.hashMap[k]=v
+  
+  def write_globals(self):
+     for k,v in self.hashMap.items():
+        if k[0]=="_":
+          self.hashMapGlobals[k]=v      
+
+  def on_launch(self,data):
+      self.hashMap['listener']='onLaunch'
+      self.RunEvent("onLaunch",None,True)
+
   def select_tab(self,data):
     
     if  isinstance(data,dict):
@@ -3915,6 +4138,8 @@ function openProcess(strId) {
 
       if self.current_tab_id in self.tabsHashMap:
         self.hashMap = dict(self.tabsHashMap[self.current_tab_id])  
+
+        self.read_globals()
         
 
       if "maintab_"+self.current_tab_id in self.new_tabs:
@@ -3962,6 +4187,8 @@ function openProcess(strId) {
 
       self.hashMap =res.d
 
+      self.write_globals()
+
       return json.dumps(jdata,ensure_ascii=False)
     except Exception as e:
       #  
@@ -3970,7 +4197,55 @@ function openProcess(strId) {
        
     
 
+  def set_input_js(self,method,data,ddata,async_mode=False,postExecute=''):
+   
+    try:
+      
+      start_time = time.time()
     
+      jdata = json.loads(data)
+    
+      jhashMap = javahashMap()
+      #jhashMap.importmap(jdata['hashmap'])
+      jhashMap.importdict(self.hashMap)
+
+      handler_id = str(uuid.uuid4().hex)
+      if async_mode:
+         self.js_results_async[handler_id] = (postExecute,self.current_tab_id)
+
+      self.socket_.emit('eval_js', {"hashMap":jhashMap.d, "script":method,"id":handler_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+
+      
+      if not async_mode:
+        while not handler_id in self.js_results:
+          pass
+        
+        result_message = self.js_results[handler_id]
+        self.js_results.pop(handler_id, None)
+
+        if result_message.get("code")==1:
+          jHashMap = result_message["value"]
+          for key, value in jHashMap.items():
+              self.hashMap[key]=value
+
+          jhashMap.d = result_message.get("value")
+          jdata['hashmap'] = jhashMap.export()
+          jdata['stop'] =False
+          jdata['ErrorMessage']=""
+          jdata['Rows']=[]
+
+        else:
+          self.hashMap['ErrorMessage']= result_message.get("value")
+
+      #self.hashMap =res.d
+
+        print("JS eval: --- %s seconds ---" % (time.time() - start_time))  
+
+      return json.dumps(jdata,ensure_ascii=False)
+    except Exception as e:
+      #  
+      
+      self.hashMap['ErrorMessage']= str(e)  
 
     
 
@@ -4015,7 +4290,13 @@ function openProcess(strId) {
 
         json_str = {"process":self.process.get("ProcessName",""),"operation":self.screen.get("Name",""),"hashmap":self.hashMap}
 
-      if 'Handlers' in self.screen or not (postExecute==None or postExecute=='') or (common and 'CommonHandlers' in self.configuration['ClientConfiguration']):
+      is_new_handlers = False
+      if self.screen!=None:
+         if 'Handlers' in self.screen:
+            is_new_handlers=True
+
+         
+      if is_new_handlers or not (postExecute==None or postExecute=='') or (common and 'CommonHandlers' in self.configuration['ClientConfiguration']):
       #NEW HANDLERS 
 
         if postExecute==None or  postExecute=='':
@@ -4032,28 +4313,35 @@ function openProcess(strId) {
             if not handler.get('event')==event:
               continue  
 
+          if handler.get('listener')!=None and handler.get('listener')!="":  
+             if self.hashMap.get("listener")!=handler.get('listener'):
+                continue
+
           if handler.get('action')=='run':
             if handler.get('type')=='python':
               
               operation = handler.get('method')
               self.set_input(operation,json.dumps(json_str,ensure_ascii=False).encode('utf-8'),self.process_data)
 
-            if handler.get('type')=='online':
+            elif handler.get('type')=='online':
               
               operation = handler.get('method')
-              self.set_input_online(operation,json.dumps(json_str,ensure_ascii=False))  
+              self.set_input_online(operation,json.dumps(json_str,ensure_ascii=False)) 
+            elif handler.get('type')=='js':
+               self.set_input_js(handler.get("method"),json.dumps(json_str,ensure_ascii=False).encode('utf-8'),self.process_data,False)   
 
           elif  handler.get('action')=='runasync':
             if handler.get('type')=='python':
             
               operation = handler.get('method')
               
-              _thread = threading.Thread(target=self.async_callback, args=(operation,json_str,self.current_tab_id,handler.get('postExecute','')))
+              _thread = threading.Thread(target=self.async_callback_online, args=(operation,json_str,self.current_tab_id,handler.get('postExecute','')))
               _thread.start()   
     
-            
+            elif handler.get('type')=='js':
+               self.set_input_js(handler.get("method"),json.dumps(json_str,ensure_ascii=False).encode('utf-8'),self.process_data,True,handler.get('postExecute',''))
 
-            if handler.get('type')=='online':
+            elif handler.get('type')=='online':
               
               operation = handler.get('method')
 
