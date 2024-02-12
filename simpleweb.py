@@ -170,6 +170,7 @@ class Simple:
 
     #print(tabid)
     self.added_tables=[]
+    
     self.firsttabslayout=[]
     self.screentabs = []
 
@@ -236,7 +237,45 @@ class Simple:
 
     for el in jSetValues:
          for key,value in el.items():
-          self.socket_.emit('setvaluepulse', {'key':"d"+self.current_tab_id+"_"+key,'value':el[key],'tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE)         
+          self.socket_.emit('setvaluepulse', {'key':"d"+self.current_tab_id+"_"+key,'value':el[key],'tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+
+  def debug(self,breakpoint_data):
+    jdata = breakpoint_data  
+    t = {
+    "type": "table",
+    "textsize": "25",
+    "hidecaption": "false",
+    "editmode": "modal",
+    "columns": [
+       
+        {
+        "name": "variable",
+        "header": "Переменная",
+        "weight": "1",
+        "gravity":"left",
+        "input":"EditTextText"
+        },
+        {
+        "name": "value",
+        "header": "Значение",
+        "weight": "1",
+        "gravity":"left",
+        "input":"EditTextText"
+    }
+
+    ]
+    }  
+
+    t['rows'] = []
+    for k,v in jdata["hashmap"].items():
+       t["rows"].append({"variable":k,"value":v})
+
+    self.hashMap["StackTable"] = json.dumps(t,ensure_ascii=False)
+    self.hashMap["RefreshScreen"] =""
+
+    self.handle_command()
+
+                 
           
   #def connect_event(self,message):
   #  event = "Connect"
@@ -542,6 +581,13 @@ class Simple:
           hashMap["filename"]=message.get('filename')
           hashMap['listener']='upload_file'
 
+        elif message.get('data')=='canvas_mouse_event':
+          hashMap['listener']='canvas_mouse_event'
+          lid = message.get('source').split('_')
+          hashMap[lid[1]] = message.get('values')
+          
+          spl = message.get('source').split('_')
+
         elif message.get('data')=='get_cookie': 
            mCookie = message.get('value')
            hashMap['_cookies']=mCookie
@@ -732,7 +778,11 @@ class Simple:
 
         #operation = Simple.screen.get('DefOnInput','')
 
-      
+        try:
+          if "JSOutput" in message:
+             hashMap["JSOutput"] = message("JSOutput")
+        except:
+           pass     
 
         self.RunEvent("onInput")
 
@@ -801,7 +851,42 @@ class Simple:
                      self.socket_.emit('setvalueedit', {'key':"d"+self.current_tab_id+"_"+key,'value':html.unescape(el[key]),'tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
                      #print("d"+Simple.current_tab_id+"_"+key)
                      
-          self.hashMap.pop('SetValuesEdit',None)      
+          self.hashMap.pop('SetValuesEdit',None)     
+
+    if  'SetCanvas' in self.hashMap:
+         
+          jSetValues = json.loads(self.hashMap.get('SetCanvas'))
+          for key,value in jSetValues.items():
+            self.socket_.emit('setcanvas', {'key':"d"+self.current_tab_id+"_"+key,'value':html.unescape(jSetValues[key]),'tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+                      
+          self.hashMap.pop('SetCanvas',None)      
+    if  'InitCanvas' in self.hashMap:
+         
+          jSetValues = json.loads(self.hashMap.get('InitCanvas'))
+          for key,value in jSetValues.items():
+            self.socket_.emit('initcanvas', {'key':"d"+self.current_tab_id+"_"+key,'value':html.unescape(jSetValues[key]),'tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+                      
+          self.hashMap.pop('InitCanvas',None)  
+    
+    if  'StopCanvasEvents' in self.hashMap:
+         
+          self.socket_.emit('stopeventscanvas', {'key':"d"+self.current_tab_id+"_StopEvents",'value':'','tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+                      
+          self.hashMap.pop('StopCanvasEvents',None) 
+    
+    if  'StartCanvasEvents' in self.hashMap:
+         
+          self.socket_.emit('starteventscanvas', {'key':"d"+self.current_tab_id+"_StartEvents",'value':'','tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+                      
+          self.hashMap.pop('StartCanvasEvents',None)              
+
+    if  'StackToFront' in self.hashMap:
+          self.hashMap.pop('StackToFront',None)         
+
+          jSetValues = self.hashMap
+          self.socket_.emit('initstack', {'values':jSetValues,'tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+                      
+                    
 
     if  'SetValuesPulse' in self.hashMap:
           #TODO переделать одним запросом
@@ -1256,11 +1341,6 @@ class Simple:
 
     self.socket_ = socket
 
-    #self.socket_ .on_event('close_maintab',self.close_maintab, namespace='/'+SOCKET_NAMESPACE)
-    #self.socket_ .on_event('run_process',self.run_process, namespace='/'+SOCKET_NAMESPACE)
-    #self.socket_ .on_event('input_event',self.input_event, namespace='/'+SOCKET_NAMESPACE)
-    ##Simple.socket_ .on_event('connect_event',self.connect_event, namespace='/'+SOCKET_NAMESPACE)
-    #self.socket_ .on_event('select_tab',self.select_tab, namespace='/'+SOCKET_NAMESPACE)
     self.isreload=False
     self.islogin=False
     self.loginreload=False
@@ -1294,6 +1374,7 @@ class Simple:
     self.tabsHashMap={}
 
     self.added_tables = []
+    self.added_canvas = []
     
     
     self.blocknext=False
@@ -2006,6 +2087,20 @@ class Simple:
 
                   currentcontainer.append(new_element)
 
+            if elem.get('type')=='map':
+
+              if tvkey!=""  and tvkey!=None:
+                
+                new_element = soup.new_tag("canvas", id=tvkey,style=get_decor(elem,additional_styles)+";border: 1px solid blue;")
+                  
+                    
+                if 'style_class' in elem:
+                      new_element['class'] = new_element.get('class', []) + [elem.get('style_class')]
+
+                currentcontainer.append(new_element)
+                
+                self.added_canvas.append(tvkey)
+
             if elem.get('type')=='CheckBox':
 
                 
@@ -2458,6 +2553,9 @@ class Simple:
    
     </script>
     <script type="text/javascript" charset="utf-8">
+
+        var canvas = [];
+
         $(document).ready(function() {
 
             
@@ -2467,32 +2565,21 @@ class Simple:
             var sid = socket.id
 
            
-            
+            var hashMap = {};
+            var jsoutput = null;
+            var nativehandlers = [];
             
 
             var DELAY = 250, clicks = 0, timer = null;
-
-            // $(document).on('click', 'tr', function () {
             
-              
-              
-           //   formdata={data: 'table_click',index: ($(this).index()),source:($(this).attr("id"))}
-                
-           //   socket.emit('input_event', formdata);
-
-           // });
-
-
-           //setTimeout( function(){
-           //var r = Cookies.get();
-           //           formdata={data: 'get_cookie',value:JSON.stringify(r)}
-           //           socket.emit('cookie_event', formdata); 
-           // }, 500);
-                      
+            var canvasevents=true;
+                    
            
 
             let code = "";
             let reading = false;
+
+            //#HTMLdocument_ready
 
             $(document).on('keypress',  function (e) {
             
@@ -2503,7 +2590,11 @@ class Simple:
                        
                         
                         formdata={data: 'barcode',barcode: code}
+                        
+                        if(performNativeJS("barcode","barcode",formdata)){
+                        formdata["JSOutput"] = jsoutput;
                         socket.emit('input_event', formdata);
+                        }
 
                          code = "";
                     }
@@ -2523,14 +2614,71 @@ class Simple:
             
             });
 
-            //    $(window).on('load', function() {
-                
-            //    var r = Cookies.get();
-            //    formdata={data: 'get_cookie',value:JSON.stringify(r)}
-            //    socket.emit('input_event', formdata); 
-                
-            //})
+            function b64DecodeUnicode(str) {
+    
+                return decodeURIComponent(atob(str).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+            }
 
+
+            function performNativeJS(event,id,data){
+               let result=true;
+
+               nativehandlers.forEach(function(obj) {
+                  let mlistener = obj.listener.split('|'); 
+
+                  if((mlistener.length==2 &&(mlistener[0]==event && id.includes(mlistener[1])))||(mlistener.length==1&&mlistener[0]==event)){
+                  
+                  let script = b64DecodeUnicode(obj.method);
+
+                  
+                  
+                   try {
+
+                      var F=new Function ('hashMap','id','data',script);
+                      var r = F(hashMap,id,data);
+                     
+                      if(typeof(r)=="boolean")
+                      {
+                      result =  r;
+                      }
+                      else {
+                      if(r instanceof Array)
+                      {
+                      if(r.length==2){
+                      
+                      jsoutput = r[1];
+                      result =  r[0]
+                      
+                      }
+                      else{
+                      
+                      result =  false;
+                      
+                      }
+                      }
+                      else{
+                      result =  false;
+                      }
+                      }
+
+                 } catch (err) { 
+                      
+                      alert("Errror:"+err);
+                      result =  false;
+
+                 }
+
+                 
+
+                  };
+               });  
+
+               return result; 
+               
+             }
+            
            
 
             
@@ -2549,8 +2697,10 @@ class Simple:
 
 
                 formdata={data: 'table_click_raw',index: index,source:id}
-                
+                if(performNativeJS("table_click_raw",id,formdata)){
+                formdata["JSOutput"] = jsoutput;
                 socket.emit('input_event', formdata);
+                }
 
               clicks++;
 
@@ -2559,8 +2709,10 @@ class Simple:
                 timer = setTimeout(function() {
 
                 formdata={data: 'table_click',index: index,source:id}
-                
+                if(performNativeJS("table_click",id,formdata)){   
+                formdata["JSOutput"] = jsoutput;
                 socket.emit('input_event', formdata);
+                }
 
                 clicks = 0;  
 
@@ -2580,7 +2732,10 @@ class Simple:
                   
                   formdata={data: 'table_doubleclick',index: index,source:id}
                       
-                    socket.emit('input_event', formdata);
+                  if(performNativeJS("table_doubleclick",id,formdata)){
+                  formdata["JSOutput"] = jsoutput;
+                  socket.emit('input_event', formdata);
+                  }
 
                   clicks = 0;             
               }
@@ -2596,6 +2751,7 @@ class Simple:
             $(document).on('input','table td', function () {
               
               formdata={data: 'table_edit',index: ($(this).closest('tr').index()),source_row:($(this).closest('tr').attr("id")),source_column:($(this).index()),valuetext:($(this).text()),valuecb:$(this).find('input').is(":checked")}
+              
               socket.emit('input_event', formdata);
             });
 
@@ -2604,11 +2760,38 @@ class Simple:
               
               
               formdata={data: 'card_click',index: ($(this).index()),source:($(this).attr("id"))}
-                
-              socket.emit('input_event', formdata);
+
+              if(performNativeJS("card_click",($(this).attr("id")),formdata)){   
+                formdata["JSOutput"] = jsoutput;
+                socket.emit('input_event', formdata);
+              }
             });
 
-            $(document).on('change','select', function () {
+            $(document).on('change','input:checkbox', function () {
+            
+
+             let formdata={data: 'checkbox',source:clickedID,sid:sid};
+              var clickedID=this.id;
+              jsonObj = [];
+              item = {}
+                
+              item [clickedID] = this.checked;
+
+              jsonObj.push(item);
+
+              if(performNativeJS("checkbox_change",clickedID,formdata)){
+                  jsonObj.push({"JSOutput":jsoutput});
+                  jsonString = JSON.stringify(jsonObj);
+                  formdata={data: 'button',values: jsonString,source:clickedID,sid:sid}
+                  
+                  socket.emit('input_event', formdata); 
+                  
+                  
+              } 
+             
+            });
+
+             $(document).on('change','select', function () {
             
               var selectedValue = this.selectedOptions[0].value;
               var selectedText  = this.selectedOptions[0].text;
@@ -2627,7 +2810,10 @@ class Simple:
               
               formdata={data: 'text_input',index: ($(this).index()),source:($(this).attr("id")),value:($(this).val())}
                 
-              socket.emit('input_event', formdata);
+              if(performNativeJS("text_input",($(this).attr("id")),formdata)){   
+                formdata["JSOutput"] = jsoutput;
+                socket.emit('input_event', formdata);
+              }
             });
             
 
@@ -2649,7 +2835,10 @@ class Simple:
                     
                     formdata={data: 'card_event',source:clickedID }
                     
+                    if(performNativeJS("card_event",($(this).attr("id")),formdata)){   
+                    formdata["JSOutput"] = jsoutput;
                     socket.emit('input_event', formdata); 
+                    }
                 }
                 else if(clickedID.includes('onResultPositive')||clickedID.includes('onResultNegative')){
                     //do nothing
@@ -2698,12 +2887,23 @@ class Simple:
                 
                 
 
-                jsonString = JSON.stringify(jsonObj);
-                formdata={data: 'button',values: jsonString,source:clickedID,sid:sid}
+
                 
-                socket.emit('input_event', formdata); 
+                if(performNativeJS("click",clickedID,formdata)){
+                  jsonObj.push({"JSOutput":jsoutput});
+                  jsonString = JSON.stringify(jsonObj);
+                  formdata={data: 'button',values: jsonString,source:clickedID,sid:sid}
+                  
+                  socket.emit('input_event', formdata); 
+                  }
+                  
                 }
             });
+
+
+      
+
+          
             
 
             $(document).on('click', "[id*='spanmaintab_']", function()
@@ -2854,11 +3054,242 @@ class Simple:
                                
             });
 
+
+
+
             socket.on('setvalueedit', function (data) {
                 
                 $("#"+data.key).attr('value',data.value);
             });
+
             
+            var mresult=0;
+            function mouseDownEventHandler(id,e) {
+             //e.preventDefault();
+             //e.stopPropagation();
+
+             var canvas = $("#"+id).get(0);
+             var x = e.pageX - canvas.offsetLeft;
+             var y = e.pageY - canvas.offsetTop;
+
+             if(canvasevents){
+                if(e.which == 1){
+                 var point = {type:"mouseDown",x:x,y:y};
+                 if(performNativeJS("mouseDown",id,point)){
+                  
+                 socket.emit('input_event', {data:"canvas_mouse_event",source: id,values:JSON.stringify(point)});
+
+                 }
+                }else{
+                    var point = {type:"mouseDownOther",x:x,y:y,"button":e.which};
+                    if(performNativeJS("mouseDownOther",id,point)){
+                   socket.emit('input_event', {data:"canvas_mouse_event",source: id,values:JSON.stringify(point)});
+                   }
+                }
+              }
+
+             /*clicks++;
+
+             if(clicks === 1) {
+
+                timer = setTimeout(function() {
+                
+                mresult=1;
+
+               
+                clicks = 0; 
+                
+
+                if(e.which == 1){
+                 var point = {type:"mouseDown",x:x,y:y};
+                 if(performNativeJS("mouseDown",id,point)){
+                  
+                 socket.emit('input_event', {data:"canvas_mouse_event",source: id,values:JSON.stringify(point)});
+
+                 }
+
+                }else{
+                    var point = {type:"mouseDownOther",x:x,y:y};
+                    if(performNativeJS("mouseDownOther",id,point)){
+                   socket.emit('input_event', {data:"canvas_mouse_event",source: id,values:JSON.stringify(point)});
+                    }
+                }
+                         
+
+            }, 200); 
+
+            }
+            
+            else{
+              
+              clicks = 0;
+             
+              mresult=1;   
+               var point = {type:"mouseDoubleClick",x:x,y:y};
+               if(performNativeJS("mouseDoubleClick",id,point)){
+               socket.emit('input_event', {data:"canvas_mouse_event",source: id,values:JSON.stringify(point)});
+               }
+
+            }*/
+
+                         
+             
+           
+             
+            }
+
+            
+
+            function mouseMoveEventHandler(id,e) {
+             var canvas = $("#"+id).get(0);
+             var x = e.pageX - canvas.offsetLeft;
+             var y = e.pageY - canvas.offsetTop;
+
+             var point = {type:"mouseMove",x:x,y:y};
+            
+             if(performNativeJS("mouseMove",id,point)){
+             if(canvasevents){
+             socket.emit('input_event', {data:"canvas_mouse_event",source: id,values:JSON.stringify(point)});
+             }
+             }
+             
+            }
+
+            function mouseUpEventHandler(id,e) {
+            //if(mresult==1){
+             mresult=0;
+             var canvas = $("#"+id).get(0);
+             var x = e.pageX - canvas.offsetLeft;
+             var y = e.pageY - canvas.offsetTop;
+
+             var point = {type:"mouseUp",x:x,y:y};
+            
+             if(performNativeJS("mouseUp",id,point)){
+             socket.emit('input_event', {data:"canvas_mouse_event",source: id,values:JSON.stringify(point)});
+             }
+
+             //}
+             
+            }
+
+            function onContextMenuHandler(e) {
+             return false;
+             
+            }
+
+socket.on('setcanvas', function (data) {
+    "use strict";
+    var canvas = $("#"+data.key).get(0);
+    canvas.height = data.value.height;
+    canvas.width = data.value.width;
+
+
+    var context = canvas.getContext("2d");
+
+    context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+
+    var draw_array = data.value.draw;
+
+
+    draw_array.forEach(function(obj) { 
+      if(obj.type=="cells"){
+      
+      var x=  obj.x;
+      var y = obj.y;
+
+      var tags = obj.tags;
+
+      for(let i = 0; i < obj.col_count; i++){
+      for(let j = 0; j < obj.row_count; j++){
+
+      context.strokeStyle = "#ff0000";
+      context.lineWidth = 1;
+
+      context.beginPath();
+      context.rect(x,y,obj.cell_size,obj.cell_size);
+      context.stroke();
+     
+      var text = tags[i][j];
+      context.font = "12px serif";
+      var m = context.measureText(text);
+      var mh = context.measureText("M");
+     
+      context.fillText(text, Math.round(x+obj.cell_size/2-m.width/2), Math.round(y+obj.cell_size/2+mh.width/2));
+      y =y+obj.cell_size;
+      }
+      x =x+obj.cell_size;
+      }
+
+      }
+      else if(obj.type=="cell"){
+        context.strokeStyle = "#ff0000";
+        context.lineWidth = 1;
+
+        context.beginPath();
+        context.rect(obj.x1,obj.y1,obj.x2-obj.x1,obj.y2-obj.y1);
+        context.stroke();
+        
+        var text = obj.label;
+        context.font = "12px serif";
+        var m = context.measureText(text);
+        var mh = context.measureText("M");
+        
+        context.fillText(text, Math.round(obj.x1+(obj.x2-obj.x1)/2-m.width/2), Math.round(obj.y1+(obj.y2-obj.y1)/2+mh.width/2));
+
+     } 
+
+
+    });
+    
+     
+
+   
+                   
+});
+            
+
+           socket.on('initstack', function (data) {
+                hashMap = data.values;
+                              
+            });
+
+            socket.on('initnativehandlers', function (data) {
+                nativehandlers = data.handlers;
+                              
+            });
+
+            socket.on('initcanvas', function (data) {
+                "use strict";
+                var canvas = $("#"+data.key).get(0);
+                canvas.height = data.value.height;
+                canvas.width = data.value.width;
+
+                
+                
+                canvas.addEventListener("mousedown", mouseDownEventHandler.bind(null,  data.key), false);
+                canvas.addEventListener('mousemove', mouseMoveEventHandler.bind(null,  data.key), false);
+                canvas.addEventListener('mouseup', mouseUpEventHandler.bind(null,  data.key), false);
+
+                canvasevents=true;
+                
+
+               
+                               
+            });
+
+            socket.on('stopevents', function (data) {
+                
+            canvasevents=false;
+               
+                               
+            });
+
+            socket.on('startevents', function (data) {
+                
+            canvasevents=true;
+               
+                               
+            });
 
             socket.on('setvisible', function (data) {
                 
@@ -3206,9 +3637,12 @@ class Simple:
                         item ["base64"] =dataURL
                         
                         jsonObj.push(item);
+                        if(performNativeJS("dialog_result",event.target.id,jsonObj)){
+                        jsonObj.push({"JSOutput":jsoutput});
+                        
                         jsonString = JSON.stringify(jsonObj);
                         socket.emit('input_event', {data:"dialog_result",source: event.target.id,values:jsonString});
-    
+                        }
                         });
                         
                       }
@@ -3229,10 +3663,13 @@ class Simple:
                     
 
 
-                    jsonString = JSON.stringify(jsonObj);
+                    
               
- 
+                    if(performNativeJS("dialog_result",event.target.id,jsonObj)){
+                    jsonObj.push({"JSOutput":jsoutput});
+                    jsonString = JSON.stringify(jsonObj);
                     socket.emit('input_event', {data:"dialog_result",source: event.target.id,values:jsonString});
+                    }
                     modal.close();
                 }
                 
@@ -3295,7 +3732,7 @@ class Simple:
                
 
 
-                     socket.emit('input_event', {data:"edittable_result",source: event.target.id,values: jsonString,table_id:data.table_id,selected_line_id:data.selected_line_id });
+                    socket.emit('input_event', {data:"edittable_result",source: event.target.id,values: jsonString,table_id:data.table_id,selected_line_id:data.selected_line_id });
                     modal.close();
                 }
                 
@@ -4002,7 +4439,7 @@ function openProcess(strId) {
 
     source = soup.prettify()
     
- 
+  
 
 
     items = []
@@ -4017,9 +4454,13 @@ function openProcess(strId) {
     #t = Template(htmlstring)
     #res = t.render(items=items,docdata=docdata)
 
+    htmlsource = html.unescape(source)
 
-    
-    return html.unescape(source)
+    if "HTMLdocument_ready" in self.configuration['ClientConfiguration']:
+      string = base64.b64decode(self.configuration['ClientConfiguration']["HTMLdocument_ready"]).decode("utf-8")
+      htmlsource  = htmlsource.replace("//#HTMLdocument_ready",string+";")
+
+    return htmlsource
   
   def make_menu(self,soup,nav, menustr):
     if menustr==None:
@@ -4127,6 +4568,15 @@ function openProcess(strId) {
           self.hashMapGlobals[k]=v      
 
   def on_launch(self,data):
+      
+      jhandlers = []
+      if 'CommonHandlers' in self.configuration['ClientConfiguration']:
+        for h in self.configuration['ClientConfiguration']['CommonHandlers']:
+           if h["event"] == "onWebEvent":
+              jhandlers.append(h)
+        if len(jhandlers)>0:      
+          self.socket_.emit('initnativehandlers', {"handlers":jhandlers},room=self.sid,namespace='/'+SOCKET_NAMESPACE)
+      
       self.hashMap['listener']='onLaunch'
       self.RunEvent("onLaunch",None,True)
 
