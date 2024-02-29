@@ -853,13 +853,7 @@ class Simple:
                      
           self.hashMap.pop('SetValuesEdit',None)     
 
-    if  'SetCanvas' in self.hashMap:
-         
-          jSetValues = json.loads(self.hashMap.get('SetCanvas'))
-          for key,value in jSetValues.items():
-            self.socket_.emit('setcanvas', {'key':"d"+self.current_tab_id+"_"+key,'value':html.unescape(jSetValues[key]),'tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
-                      
-          self.hashMap.pop('SetCanvas',None)      
+        
     if  'InitCanvas' in self.hashMap:
          
           jSetValues = json.loads(self.hashMap.get('InitCanvas'))
@@ -868,6 +862,13 @@ class Simple:
                       
           self.hashMap.pop('InitCanvas',None)  
     
+    if  'SetCanvas' in self.hashMap:
+         
+          jSetValues = json.loads(self.hashMap.get('SetCanvas'))
+          for key,value in jSetValues.items():
+            self.socket_.emit('setcanvas', {'key':"d"+self.current_tab_id+"_"+key,'value':html.unescape(jSetValues[key]),'tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
+                      
+          self.hashMap.pop('SetCanvas',None)  
     if  'StopCanvasEvents' in self.hashMap:
          
           self.socket_.emit('stopeventscanvas', {'key':"d"+self.current_tab_id+"_StopEvents",'value':'','tabid':self.current_tab_id},room=self.sid,namespace='/'+SOCKET_NAMESPACE) 
@@ -2091,7 +2092,7 @@ class Simple:
 
               if tvkey!=""  and tvkey!=None:
                 
-                new_element = soup.new_tag("canvas", id=tvkey,style=get_decor(elem,additional_styles)+";border: 1px solid blue;")
+                new_element = soup.new_tag("canvas", id=tvkey,style=get_decor(elem,additional_styles)+";border: 1px solid gray;")
                   
                     
                 if 'style_class' in elem:
@@ -3177,6 +3178,18 @@ class Simple:
              
             }
 
+  function canvas_arrow(context, fromx, fromy, tox, toy) {
+  var headlen = 10; // length of head in pixels
+  var dx = tox - fromx;
+  var dy = toy - fromy;
+  var angle = Math.atan2(dy, dx);
+  context.moveTo(fromx, fromy);
+  context.lineTo(tox, toy);
+  context.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+  context.moveTo(tox, toy);
+  context.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+}
+
 socket.on('setcanvas', function (data) {
     "use strict";
     var canvas = $("#"+data.key).get(0);
@@ -3222,12 +3235,19 @@ socket.on('setcanvas', function (data) {
 
       }
       else if(obj.type=="cell"){
-        context.strokeStyle = "#ff0000";
-        context.lineWidth = 1;
+        
 
         context.beginPath();
+
+        context.strokeStyle = "#000000";
+        context.lineWidth = 1;
+        context.fillStyle = obj.fill_color;
+        
         context.rect(obj.x1,obj.y1,obj.x2-obj.x1,obj.y2-obj.y1);
         context.stroke();
+        context.fill();
+        
+        context.fillStyle = "#000000";
         
         var text = obj.label;
         context.font = "12px serif";
@@ -3235,7 +3255,61 @@ socket.on('setcanvas', function (data) {
         var mh = context.measureText("M");
         
         context.fillText(text, Math.round(obj.x1+(obj.x2-obj.x1)/2-m.width/2), Math.round(obj.y1+(obj.y2-obj.y1)/2+mh.width/2));
+        context.closePath();
 
+        
+
+     } 
+     else if(obj.type=="line"){
+        context.strokeStyle = obj.color;
+        context.lineWidth = obj.strock_size;
+
+        context.beginPath();
+        context.moveTo(obj.x1,obj.y1);
+        context.lineTo(obj.x2,obj.y2);
+        
+        context.stroke();
+        
+        context.closePath();
+
+     } 
+     else if(obj.type=="arrow"){
+        context.beginPath();
+
+        context.strokeStyle = obj.color;
+        context.lineWidth = obj.strock_size;
+        canvas_arrow(context, obj.x2,obj.y2,obj.x1,obj.y1);
+
+        context.stroke();
+        
+        context.closePath();
+
+     } 
+     else if(obj.type=="rect"){
+        context.beginPath();
+
+        context.strokeStyle = obj.color;
+        context.lineWidth = obj.strock_size;
+        context.fillStyle = obj.fill_color;
+
+        
+        context.rect(obj.x1,obj.y1,obj.x2-obj.x1,obj.y2-obj.y1);
+        context.stroke();
+        context.fill();
+        
+        context.closePath();
+
+     } else if(obj.type=="text"){
+        context.fillStyle = obj.color;
+        
+        var text = obj.text;
+        context.font = obj.size + "px serif";
+        //var m = context.measureText(text);
+        //var mh = context.measureText("M");
+        
+        context.fillText(text, obj.x, obj.y);
+
+        context.closePath();
      } 
 
 
