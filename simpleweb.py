@@ -3241,10 +3241,12 @@ socket.on('setcanvas', function (data) {
 
         context.strokeStyle = "#000000";
         context.lineWidth = 1;
+        if(obj.fill_color!=null)
         context.fillStyle = obj.fill_color;
         
         context.rect(obj.x1,obj.y1,obj.x2-obj.x1,obj.y2-obj.y1);
         context.stroke();
+        if(obj.fill_color!=null)
         context.fill();
         
         context.fillStyle = "#000000";
